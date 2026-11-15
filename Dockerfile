@@ -23,7 +23,8 @@ WORKDIR /var/www/html
 COPY --from=vendor /app .
 COPY --from=assets /app/public ./public
 
-RUN chown -R www-data:www-data storage bootstrap/cache \
+RUN chown -R www-data:www-data /var/www/html \
+ && chmod -R 755 /var/www/html \
  && chmod -R 775 storage bootstrap/cache
 
 USER www-data
