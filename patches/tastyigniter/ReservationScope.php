@@ -1,0 +1,64 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Igniter\Reservation\Models\Scopes;
+
+use Carbon\Carbon;
+use Igniter\Flame\Database\Scope;
+use Igniter\Reservation\Models\Reservation;
+use Illuminate\Database\Eloquent\Builder;
+
+class ReservationScope extends Scope
+{
+    public function addApplyDateTimeFilter()
+    {
+        return function(Builder|Reservation $builder, $startAt, $endAt = null) {
+            if (is_array($startAt)) {
+                $endAt = array_get($startAt, 'endAt');
+                $startAt = array_get($startAt, 'startAt');
+            }
+
+            return $builder->whereBetweenReservationDateTime(
+                Carbon::parse($startAt)->format('Y-m-d H:i:s'),
+                Carbon::parse($endAt)->format('Y-m-d H:i:s'),
+            );
+        };
+    }
+
+    public function addWhereBetweenReservationDateTime()
+    {
+        return fn(Builder|Reservation $builder, $start, $end) => $builder->whereRaw('(reserve_date + reserve_time) between ? and ?', [$start, $end]);
+    }
+
+    public function addWhereBetweenDate()
+    {
+        return $this->addWhereBetweenStayTime();
+    }
+
+    public function addWhereBetweenStayTime()
+    {
+        return fn(Builder|Reservation $builder, $dateTime) => $builder
+            ->whereRaw(
+                '? between ((reserve_date + reserve_time) - INTERVAL \'2 minutes\')'.
+                ' and ((reserve_date + reserve_time) + (duration * INTERVAL \'1 minute\'))',
+                [$dateTime],
+            );
+    }
+
+    public function addWhereNotBetweenStayTime()
+    {
+        return fn(Builder|Reservation $builder, $dateTime) => $builder->whereRaw(
+            '? not between ((reserve_date + reserve_time) - ((duration - 2) * INTERVAL \'1 minute\'))'.
+            ' and ((reserve_date + reserve_time) + (duration * INTERVAL \'1 minute\'))',
+            [$dateTime],
+        );
+    }
+
+    public function addWhereHasDiningArea()
+    {
+        return fn(Builder|Reservation $builder, $diningAreaId) => $builder->whereHas('tables', function($q) use ($diningAreaId): void {
+            $q->where('dining_tables.dining_area_id', $diningAreaId);
+        })->orDoesntHave('tables');
+    }
+}
